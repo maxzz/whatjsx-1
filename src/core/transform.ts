@@ -1,6 +1,6 @@
 import jscodeshift from 'jscodeshift';
 
-export const transform = (source: string): string => {
+export function transform(source: string): string {
     const j = jscodeshift.withParser('tsx');
     const root = j(source);
 
@@ -61,4 +61,4 @@ export const transform = (source: string): string => {
     });
 
     return root.toSource();
-};
+}
