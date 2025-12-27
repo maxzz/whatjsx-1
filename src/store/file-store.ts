@@ -1,5 +1,6 @@
 import { proxy } from 'valtio';
-import { transform } from '../core/transform';
+import TransformWorker from '../core/transform.worker?worker';
+import type { TransformRequest, TransformResponse } from '../core/transform.worker';
 
 export interface FileItem {
     id: string;
@@ -18,6 +19,39 @@ interface FileStore {
     clearFiles: () => void;
 }
 
+// Create worker instance
+const worker = new TransformWorker();
+
+// Map to track pending transform requests
+const pendingRequests = new Map<string, {
+    resolve: (result: string) => void;
+    reject: (error: Error) => void;
+}>();
+
+// Handle worker responses
+worker.onmessage = (e: MessageEvent<TransformResponse>) => {
+    const { id, result, error } = e.data;
+    const pending = pendingRequests.get(id);
+    
+    if (pending) {
+        pendingRequests.delete(id);
+        if (error) {
+            pending.reject(new Error(error));
+        } else {
+            pending.resolve(result ?? '');
+        }
+    }
+};
+
+// Promise-based transform via worker
+function transformInWorker(source: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const id = crypto.randomUUID();
+        pendingRequests.set(id, { resolve, reject });
+        worker.postMessage({ id, source } satisfies TransformRequest);
+    });
+}
+
 export const fileStore = proxy<FileStore>({
     files: [],
     selectedFileId: null,
@@ -29,7 +63,7 @@ export const fileStore = proxy<FileStore>({
             let error = undefined;
 
             try {
-                converted = transform(text);
+                converted = await transformInWorker(text);
             } catch (e: any) {
                 error = e.message;
                 console.error(`Failed to transform ${file.name}:`, e);
