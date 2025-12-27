@@ -1,58 +1,157 @@
 import { proxy } from 'valtio';
-import { transform } from '../core/transform';
+import type { WorkerMessage, WorkerResult, WorkerFileData } from '../workers/file-worker';
 
 export interface FileItem {
     id: string;
     name: string;
-    path: string; // Relative path if from folder, or just name
+    path: string;
     content: string;
     converted: string;
     error?: string;
+    isRoot: boolean;
 }
 
 interface FileStore {
     files: FileItem[];
     selectedFileId: string | null;
+    rootFileId: string | null;
+    isProcessing: boolean;
+    pendingFiles: WorkerFileData[];
     addFile: (file: File, path?: string) => Promise<void>;
+    processBatch: () => Promise<void>;
     selectFile: (id: string) => void;
     clearFiles: () => void;
 }
 
+// Create worker instance
+const worker = new Worker(
+    new URL('../workers/file-worker.ts', import.meta.url),
+    { type: 'module' }
+);
+
+// Promise resolvers for worker responses
+let transformResolve: ((result: WorkerResult) => void) | null = null;
+let filesReadyResolve: (() => void) | null = null;
+
+// Handle worker messages
+worker.onmessage = (event: MessageEvent<WorkerResult>) => {
+    const result = event.data;
+
+    switch (result.type) {
+        case 'filesReady':
+            if (filesReadyResolve) {
+                filesReadyResolve();
+                filesReadyResolve = null;
+            }
+            break;
+
+        case 'transformComplete':
+            if (transformResolve) {
+                transformResolve(result);
+                transformResolve = null;
+            }
+            break;
+
+        case 'error':
+            console.error('[FileStore] Worker error:', result.error);
+            if (transformResolve) {
+                transformResolve(result);
+                transformResolve = null;
+            }
+            break;
+    }
+};
+
+worker.onerror = (error) => {
+    console.error('[FileStore] Worker error:', error);
+    fileStore.isProcessing = false;
+};
+
 export const fileStore = proxy<FileStore>({
     files: [],
     selectedFileId: null,
+    rootFileId: null,
+    isProcessing: false,
+    pendingFiles: [],
 
     addFile: async (file: File, path?: string) => {
         try {
             const text = await file.text();
-            let converted = '';
-            let error = undefined;
-
-            try {
-                converted = transform(text);
-            } catch (e: any) {
-                error = e.message;
-                console.error(`Failed to transform ${file.name}:`, e);
-            }
-
             const id = crypto.randomUUID();
-            const fileItem: FileItem = {
+
+            const fileData: WorkerFileData = {
                 id,
                 name: file.name,
                 path: path || file.name,
                 content: text,
-                converted,
-                error,
             };
 
-            fileStore.files.push(fileItem);
-
-            // Select the first file added if none selected
-            if (!fileStore.selectedFileId) {
-                fileStore.selectedFileId = id;
-            }
+            fileStore.pendingFiles.push(fileData);
         } catch (err) {
             console.error('Error reading file:', err);
+        }
+    },
+
+    processBatch: async () => {
+        if (fileStore.pendingFiles.length === 0) return;
+        if (fileStore.isProcessing) return;
+
+        fileStore.isProcessing = true;
+
+        try {
+            // Send files to worker
+            const filesToProcess = [...fileStore.pendingFiles];
+            fileStore.pendingFiles = [];
+
+            const addMessage: WorkerMessage = {
+                type: 'addFiles',
+                files: filesToProcess,
+            };
+
+            // Wait for files to be added
+            await new Promise<void>((resolve) => {
+                filesReadyResolve = resolve;
+                worker.postMessage(addMessage);
+            });
+
+            // Request transformation
+            const transformMessage: WorkerMessage = { type: 'transform' };
+
+            const result = await new Promise<WorkerResult>((resolve) => {
+                transformResolve = resolve;
+                worker.postMessage(transformMessage);
+            });
+
+            if (result.type === 'transformComplete' && result.files) {
+                // Update store with transformed files
+                for (const transformedFile of result.files) {
+                    const fileItem: FileItem = {
+                        id: transformedFile.id,
+                        name: transformedFile.name,
+                        path: transformedFile.path,
+                        content: transformedFile.content,
+                        converted: transformedFile.converted,
+                        error: transformedFile.error,
+                        isRoot: transformedFile.isRoot,
+                    };
+
+                    fileStore.files.push(fileItem);
+                }
+
+                // Set root file
+                if (result.rootFileId) {
+                    fileStore.rootFileId = result.rootFileId;
+                }
+
+                // Select the first file or root file if none selected
+                if (!fileStore.selectedFileId && fileStore.files.length > 0) {
+                    fileStore.selectedFileId = result.rootFileId || fileStore.files[0].id;
+                }
+            }
+        } catch (err) {
+            console.error('Error processing batch:', err);
+        } finally {
+            fileStore.isProcessing = false;
         }
     },
 
@@ -63,5 +162,11 @@ export const fileStore = proxy<FileStore>({
     clearFiles: () => {
         fileStore.files = [];
         fileStore.selectedFileId = null;
+        fileStore.rootFileId = null;
+        fileStore.pendingFiles = [];
+
+        // Clear worker storage
+        const clearMessage: WorkerMessage = { type: 'clear' };
+        worker.postMessage(clearMessage);
     },
 });

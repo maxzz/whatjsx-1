@@ -76,11 +76,17 @@ export function DropZone() {
             }
 
             const results = await Promise.all(queue);
-            results.flat().forEach(file => {
-                if (file.name.endsWith('.js') || file.name.endsWith('.mjs') || file.name.endsWith('.jsx')) {
-                    fileStore.addFile(file, file.webkitRelativePath);
-                }
-            });
+            const jsFiles = results.flat().filter(file => 
+                file.name.endsWith('.js') || file.name.endsWith('.mjs') || file.name.endsWith('.jsx')
+            );
+
+            // Add all files to pending queue
+            for (const file of jsFiles) {
+                await fileStore.addFile(file, file.webkitRelativePath);
+            }
+
+            // Process batch after all files are added
+            await fileStore.processBatch();
         };
 
         window.addEventListener('dragenter', handleDragEnter);

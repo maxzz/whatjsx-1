@@ -1,7 +1,7 @@
 import { useSnapshot } from 'valtio';
 import { fileStore } from '../store/file-store';
 import { clsx } from 'clsx';
-import { FileCode, FolderOpen } from 'lucide-react';
+import { FileCode, FolderOpen, Star, Loader2 } from 'lucide-react';
 import { fileOpen, directoryOpen } from 'browser-fs-access';
 
 export function Sidebar() {
@@ -17,8 +17,11 @@ export function Sidebar() {
             });
 
             for (const file of files) {
-                fileStore.addFile(file);
+                await fileStore.addFile(file);
             }
+
+            // Process batch after all files are added
+            await fileStore.processBatch();
         } catch (err: any) {
             if (err.name !== 'AbortError') {
                 console.error(err);
@@ -32,9 +35,12 @@ export function Sidebar() {
 
             for (const file of files) {
                 if (file.name.endsWith('.js') || file.name.endsWith('.mjs') || file.name.endsWith('.jsx')) {
-                    fileStore.addFile(file as File, (file as any).webkitRelativePath);
+                    await fileStore.addFile(file as File, (file as any).webkitRelativePath);
                 }
             }
+
+            // Process batch after all files are added
+            await fileStore.processBatch();
         } catch (err: any) {
             if (err.name !== 'AbortError') {
                 console.error(err);
@@ -51,7 +57,8 @@ export function Sidebar() {
                 <div className="flex gap-2">
                     <button
                         onClick={handleOpenFile}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
+                        disabled={snap.isProcessing}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded text-sm transition-colors"
                         title="Open Files"
                     >
                         <FileCode size={16} />
@@ -59,7 +66,8 @@ export function Sidebar() {
                     </button>
                     <button
                         onClick={handleOpenFolder}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm transition-colors"
+                        disabled={snap.isProcessing}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700/50 text-white rounded text-sm transition-colors"
                         title="Open Folder"
                     >
                         <FolderOpen size={16} />
@@ -69,7 +77,12 @@ export function Sidebar() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-2">
-                {snap.files.length === 0 ? (
+                {snap.isProcessing ? (
+                    <div className="text-gray-400 text-center mt-10 text-sm flex flex-col items-center gap-2">
+                        <Loader2 className="animate-spin" size={24} />
+                        Processing files...
+                    </div>
+                ) : snap.files.length === 0 ? (
                     <div className="text-gray-500 text-center mt-10 text-sm">
                         No files loaded.<br />
                         Drag & drop or open files.
@@ -94,7 +107,11 @@ export function Sidebar() {
                                     )}
                                     title={file.path}
                                 >
-                                    <FileCode size={14} className={file.error ? "text-red-400" : "text-blue-400"} />
+                                    {file.isRoot ? (
+                                        <Star size={14} className="text-yellow-400 flex-shrink-0" />
+                                    ) : (
+                                        <FileCode size={14} className={clsx("flex-shrink-0", file.error ? "text-red-400" : "text-blue-400")} />
+                                    )}
                                     <span className="truncate">{file.name}</span>
                                 </button>
                             )
