@@ -30,6 +30,7 @@ export function Editor() {
                 >
                     Original Source
                 </button>
+
                 <button
                     onClick={() => setActiveTab('converted')}
                     className={clsx(
@@ -41,22 +42,25 @@ export function Editor() {
                 >
                     Converted JSX
                 </button>
+
                 <div className="flex-1 flex items-center justify-end px-4 text-xs text-gray-500">
                     {file.path}
                 </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4">
-                {file.error ? (
-                    <div className="p-4 bg-red-900/20 border border-red-900/50 rounded text-red-200">
-                        <h3 className="font-bold mb-2">Transformation Error</h3>
-                        <pre className="whitespace-pre-wrap font-mono text-sm">{file.error}</pre>
-                    </div>
-                ) : (
-                    <pre className="font-mono text-sm text-gray-300 whitespace-pre-wrap">
-                        {activeTab === 'original' ? file.content : file.converted}
-                    </pre>
-                )}
+                {file.error
+                    ? (
+                        <div className="p-4 bg-red-900/20 border border-red-900/50 rounded text-red-200">
+                            <h3 className="font-bold mb-2">Transformation Error</h3>
+                            <pre className="whitespace-pre-wrap font-mono text-sm">{file.error}</pre>
+                        </div>
+                    ) : (
+                        <pre className="font-mono text-sm text-gray-300 whitespace-pre-wrap">
+                            {activeTab === 'original' ? file.content : file.converted}
+                        </pre>
+                    )
+                }
             </div>
         </div>
     );

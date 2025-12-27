@@ -7,7 +7,7 @@ import { fileOpen, directoryOpen } from 'browser-fs-access';
 export function Sidebar() {
     const snap = useSnapshot(fileStore);
 
-    const handleOpenFile = async () => {
+    async function handleOpenFile() {
         try {
             const files = await fileOpen({
                 mimeTypes: ['text/javascript', 'application/javascript'],
@@ -24,13 +24,11 @@ export function Sidebar() {
                 console.error(err);
             }
         }
-    };
+    }
 
-    const handleOpenFolder = async () => {
+    async function handleOpenFolder() {
         try {
-            const files = await directoryOpen({
-                recursive: true,
-            });
+            const files = await directoryOpen({ recursive: true, });
 
             for (const file of files) {
                 if (file.name.endsWith('.js') || file.name.endsWith('.mjs') || file.name.endsWith('.jsx')) {
@@ -42,12 +40,14 @@ export function Sidebar() {
                 console.error(err);
             }
         }
-    };
+    }
 
     return (
         <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col h-full">
             <div className="p-4 border-b border-gray-800">
-                <h2 className="text-lg font-semibold text-white mb-4">Explorer</h2>
+                <h2 className="text-lg font-semibold text-white mb-4">
+                    Explorer
+                </h2>
                 <div className="flex gap-2">
                     <button
                         onClick={handleOpenFile}
@@ -80,22 +80,25 @@ export function Sidebar() {
                             <span>Files ({snap.files.length})</span>
                             <button onClick={() => fileStore.clearFiles()} className="hover:text-white">Clear</button>
                         </div>
-                        {snap.files.map((file) => (
-                            <button
-                                key={file.id}
-                                onClick={() => fileStore.selectFile(file.id)}
-                                className={clsx(
-                                    'w-full text-left px-3 py-2 rounded text-sm truncate transition-colors flex items-center gap-2',
-                                    snap.selectedFileId === file.id
-                                        ? 'bg-blue-600/20 text-blue-400 border border-blue-600/50'
-                                        : 'text-gray-300 hover:bg-gray-800'
-                                )}
-                                title={file.path}
-                            >
-                                <FileCode size={14} className={file.error ? "text-red-400" : "text-blue-400"} />
-                                <span className="truncate">{file.name}</span>
-                            </button>
-                        ))}
+
+                        {snap.files.map(
+                            (file) => (
+                                <button
+                                    key={file.id}
+                                    onClick={() => fileStore.selectFile(file.id)}
+                                    className={clsx(
+                                        'w-full text-left px-3 py-2 rounded text-sm truncate transition-colors flex items-center gap-2',
+                                        snap.selectedFileId === file.id
+                                            ? 'bg-blue-600/20 text-blue-400 border border-blue-600/50'
+                                            : 'text-gray-300 hover:bg-gray-800'
+                                    )}
+                                    title={file.path}
+                                >
+                                    <FileCode size={14} className={file.error ? "text-red-400" : "text-blue-400"} />
+                                    <span className="truncate">{file.name}</span>
+                                </button>
+                            )
+                        )}
                     </div>
                 )}
             </div>
