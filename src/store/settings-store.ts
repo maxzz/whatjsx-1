@@ -12,8 +12,14 @@ export interface PrettierSettings {
     jsxSingleQuote: boolean;
 }
 
+// Editor display options
+export interface EditorSettings {
+    highlightLineLimit: number;  // Number of lines above which highlighting is disabled
+}
+
 export interface AppSettings {
     prettier: PrettierSettings;
+    editor: EditorSettings;
     theme: 'dark' | 'light';
 }
 
@@ -29,6 +35,9 @@ const defaultSettings: AppSettings = {
         trailingComma: 'es5',
         bracketSpacing: true,
         jsxSingleQuote: false,
+    },
+    editor: {
+        highlightLineLimit: 3000,
     },
     theme: 'dark',
 };
@@ -46,6 +55,10 @@ function loadSettings(): AppSettings {
                 prettier: {
                     ...defaultSettings.prettier,
                     ...parsed.prettier,
+                },
+                editor: {
+                    ...defaultSettings.editor,
+                    ...parsed.editor,
                 },
             };
         }
@@ -106,4 +119,3 @@ export function toggleTheme(): void {
 
 // Initialize theme on load
 applyTheme(settingsStore.theme);
-

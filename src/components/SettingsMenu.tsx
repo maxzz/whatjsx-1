@@ -59,130 +59,164 @@ export function SettingsMenu() {
             </DropdownMenu>
 
             <Dialog open={optionsOpen} onOpenChange={setOptionsOpen}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>Prettier Options</DialogTitle>
+                        <DialogTitle>Options</DialogTitle>
                         <DialogDescription>
-                            Configure code formatting settings. Changes are saved automatically.
+                            Configure application settings. Changes are saved automatically.
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid gap-4 py-4">
-                        {/* Print Width */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="printWidth">Print Width</Label>
-                            <Input
-                                id="printWidth"
-                                type="number"
-                                min={40}
-                                max={200}
-                                value={settings.prettier.printWidth}
-                                onChange={(e) => {
-                                    settingsStore.prettier.printWidth = parseInt(e.target.value) || 80;
-                                }}
-                            />
-                        </div>
-
-                        {/* Tab Width */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="tabWidth">Tab Width</Label>
-                            <Input
-                                id="tabWidth"
-                                type="number"
-                                min={1}
-                                max={8}
-                                value={settings.prettier.tabWidth}
-                                onChange={(e) => {
-                                    settingsStore.prettier.tabWidth = parseInt(e.target.value) || 2;
-                                }}
-                            />
-                        </div>
-
-                        {/* Use Tabs */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="useTabs">Use Tabs</Label>
-                            <div className="flex justify-end">
-                                <Switch
-                                    id="useTabs"
-                                    checked={settings.prettier.useTabs}
-                                    onCheckedChange={(checked) => {
-                                        settingsStore.prettier.useTabs = checked;
+                    {/* Editor Settings */}
+                    <div className="space-y-4">
+                        <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2">
+                            Editor
+                        </h3>
+                        <div className="grid gap-4">
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="highlightLineLimit" className="text-sm">
+                                    Highlight Line Limit
+                                    <span className="block text-xs text-gray-500 font-normal mt-0.5">
+                                        Disable highlighting above this
+                                    </span>
+                                </Label>
+                                <Input
+                                    id="highlightLineLimit"
+                                    type="number"
+                                    min={100}
+                                    max={50000}
+                                    step={100}
+                                    value={settings.editor.highlightLineLimit}
+                                    onChange={(e) => {
+                                        settingsStore.editor.highlightLineLimit = parseInt(e.target.value) || 3000;
                                     }}
                                 />
                             </div>
                         </div>
+                    </div>
 
-                        {/* Semicolons */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="semi">Semicolons</Label>
-                            <div className="flex justify-end">
-                                <Switch
-                                    id="semi"
-                                    checked={settings.prettier.semi}
-                                    onCheckedChange={(checked) => {
-                                        settingsStore.prettier.semi = checked;
+                    {/* Prettier Settings */}
+                    <div className="space-y-4 mt-6">
+                        <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide border-b border-gray-700 pb-2">
+                            Prettier
+                        </h3>
+                        <div className="grid gap-4">
+                            {/* Print Width */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="printWidth">Print Width</Label>
+                                <Input
+                                    id="printWidth"
+                                    type="number"
+                                    min={40}
+                                    max={200}
+                                    value={settings.prettier.printWidth}
+                                    onChange={(e) => {
+                                        settingsStore.prettier.printWidth = parseInt(e.target.value) || 80;
                                     }}
                                 />
                             </div>
-                        </div>
 
-                        {/* Single Quote */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="singleQuote">Single Quotes</Label>
-                            <div className="flex justify-end">
-                                <Switch
-                                    id="singleQuote"
-                                    checked={settings.prettier.singleQuote}
-                                    onCheckedChange={(checked) => {
-                                        settingsStore.prettier.singleQuote = checked;
+                            {/* Tab Width */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="tabWidth">Tab Width</Label>
+                                <Input
+                                    id="tabWidth"
+                                    type="number"
+                                    min={1}
+                                    max={8}
+                                    value={settings.prettier.tabWidth}
+                                    onChange={(e) => {
+                                        settingsStore.prettier.tabWidth = parseInt(e.target.value) || 2;
                                     }}
                                 />
                             </div>
-                        </div>
 
-                        {/* JSX Single Quote */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="jsxSingleQuote">JSX Single Quotes</Label>
-                            <div className="flex justify-end">
-                                <Switch
-                                    id="jsxSingleQuote"
-                                    checked={settings.prettier.jsxSingleQuote}
-                                    onCheckedChange={(checked) => {
-                                        settingsStore.prettier.jsxSingleQuote = checked;
+                            {/* Use Tabs */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="useTabs">Use Tabs</Label>
+                                <div className="flex justify-end">
+                                    <Switch
+                                        id="useTabs"
+                                        checked={settings.prettier.useTabs}
+                                        onCheckedChange={(checked) => {
+                                            settingsStore.prettier.useTabs = checked;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Semicolons */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="semi">Semicolons</Label>
+                                <div className="flex justify-end">
+                                    <Switch
+                                        id="semi"
+                                        checked={settings.prettier.semi}
+                                        onCheckedChange={(checked) => {
+                                            settingsStore.prettier.semi = checked;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Single Quote */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="singleQuote">Single Quotes</Label>
+                                <div className="flex justify-end">
+                                    <Switch
+                                        id="singleQuote"
+                                        checked={settings.prettier.singleQuote}
+                                        onCheckedChange={(checked) => {
+                                            settingsStore.prettier.singleQuote = checked;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* JSX Single Quote */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="jsxSingleQuote">JSX Single Quotes</Label>
+                                <div className="flex justify-end">
+                                    <Switch
+                                        id="jsxSingleQuote"
+                                        checked={settings.prettier.jsxSingleQuote}
+                                        onCheckedChange={(checked) => {
+                                            settingsStore.prettier.jsxSingleQuote = checked;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Bracket Spacing */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="bracketSpacing">Bracket Spacing</Label>
+                                <div className="flex justify-end">
+                                    <Switch
+                                        id="bracketSpacing"
+                                        checked={settings.prettier.bracketSpacing}
+                                        onCheckedChange={(checked) => {
+                                            settingsStore.prettier.bracketSpacing = checked;
+                                        }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Trailing Comma */}
+                            <div className="grid grid-cols-2 items-center gap-4">
+                                <Label htmlFor="trailingComma">Trailing Comma</Label>
+                                <Select
+                                    id="trailingComma"
+                                    value={settings.prettier.trailingComma}
+                                    onChange={(e) => {
+                                        settingsStore.prettier.trailingComma = e.target.value as 'none' | 'es5' | 'all';
                                     }}
+                                    options={[
+                                        { value: 'none', label: 'None' },
+                                        { value: 'es5', label: 'ES5' },
+                                        { value: 'all', label: 'All' },
+                                    ]}
                                 />
                             </div>
-                        </div>
-
-                        {/* Bracket Spacing */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="bracketSpacing">Bracket Spacing</Label>
-                            <div className="flex justify-end">
-                                <Switch
-                                    id="bracketSpacing"
-                                    checked={settings.prettier.bracketSpacing}
-                                    onCheckedChange={(checked) => {
-                                        settingsStore.prettier.bracketSpacing = checked;
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Trailing Comma */}
-                        <div className="grid grid-cols-2 items-center gap-4">
-                            <Label htmlFor="trailingComma">Trailing Comma</Label>
-                            <Select
-                                id="trailingComma"
-                                value={settings.prettier.trailingComma}
-                                onChange={(e) => {
-                                    settingsStore.prettier.trailingComma = e.target.value as 'none' | 'es5' | 'all';
-                                }}
-                                options={[
-                                    { value: 'none', label: 'None' },
-                                    { value: 'es5', label: 'ES5' },
-                                    { value: 'all', label: 'All' },
-                                ]}
-                            />
                         </div>
                     </div>
                 </DialogContent>
@@ -190,4 +224,3 @@ export function SettingsMenu() {
         </>
     );
 }
-
