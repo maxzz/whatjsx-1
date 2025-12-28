@@ -1,4 +1,4 @@
-import { proxy } from 'valtio';
+import { proxy, snapshot } from 'valtio';
 import type { WorkerMessage, WorkerResult, WorkerFileData } from '../workers/file-worker';
 
 export interface FileItem {
@@ -34,10 +34,15 @@ let transformResolve: ((result: WorkerResult) => void) | null = null;
 let filesReadyResolve: (() => void) | null = null;
 
 // Handle worker messages
-worker.onmessage = (event: MessageEvent<WorkerResult>) => {
+worker.onmessage = (event: MessageEvent<WorkerResult & { type: string }>) => {
     const result = event.data;
+    console.log('[FileStore] Worker message:', result.type);
 
     switch (result.type) {
+        case 'ready':
+            console.log('[FileStore] Worker ready');
+            break;
+
         case 'filesReady':
             if (filesReadyResolve) {
                 filesReadyResolve();
@@ -87,21 +92,25 @@ export const fileStore = proxy<FileStore>({
             };
 
             fileStore.pendingFiles.push(fileData);
+            console.log('[FileStore] Added file to pending:', file.name, 'Total pending:', fileStore.pendingFiles.length);
         } catch (err) {
             console.error('Error reading file:', err);
         }
     },
 
     processBatch: async () => {
+        console.log('[FileStore] processBatch called, pending:', fileStore.pendingFiles.length, 'isProcessing:', fileStore.isProcessing);
         if (fileStore.pendingFiles.length === 0) return;
         if (fileStore.isProcessing) return;
 
         fileStore.isProcessing = true;
 
         try {
-            // Send files to worker
-            const filesToProcess = [...fileStore.pendingFiles];
+            // Get plain objects from proxy (required for postMessage serialization)
+            const filesToProcess = snapshot(fileStore.pendingFiles) as WorkerFileData[];
             fileStore.pendingFiles = [];
+
+            console.log('[FileStore] Sending', filesToProcess.length, 'files to worker');
 
             const addMessage: WorkerMessage = {
                 type: 'addFiles',
@@ -113,6 +122,8 @@ export const fileStore = proxy<FileStore>({
                 filesReadyResolve = resolve;
                 worker.postMessage(addMessage);
             });
+
+            console.log('[FileStore] Files added, requesting transform');
 
             // Request transformation
             const transformMessage: WorkerMessage = { type: 'transform' };

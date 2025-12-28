@@ -9,6 +9,21 @@ export default defineConfig({
     build: {
         chunkSizeWarningLimit: 500,
     },
+    server: {
+        port: 3000,
+    },
+    worker: {
+        plugins: () => [
+            nodePolyfills({
+                include: ['path', 'stream', 'util', 'process', 'buffer', 'assert', 'os', 'constants'],
+                globals: {
+                    Buffer: true,
+                    global: true,
+                    process: true,
+                },
+            }),
+        ],
+    },
     plugins: [
         react(),
         tailwindcss(),
