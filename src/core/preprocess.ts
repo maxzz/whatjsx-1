@@ -4,24 +4,72 @@ import * as ts from 'typescript';
  * Detects the specific function construction that throws an error about `require`
  * and renames it to `__require`.
  * 
+ * Also renames the variable that holds this function to `__require` and updates exports.
+ * 
  * Target pattern:
- * throw Error('Calling `require` for "' + e + '" in an environment that doesn\'t expose the `require` function.')
+ * var r = ((e) => ...)(function(e) { 
+ *    throw Error('Calling `require` for "' + e + '" ...) 
+ * });
+ * export { n, r, t };
  */
 export function preprocess(code: string): string {
-    // 1. Create a SourceFile from the code
     const sourceFile = ts.createSourceFile('file.js', code, ts.ScriptTarget.Latest, true);
+    let targetVarName: string | null = null;
     let modified = false;
 
-    // 2. Define the transformer
+    // Pass 1: Find the variable name
+    const findVarName: ts.Visitor = (node) => {
+        if (targetVarName) return node;
+
+        if (ts.isVariableDeclaration(node) && node.initializer) {
+            // Check if initializer is CallExpression (the IIFE)
+            if (ts.isCallExpression(node.initializer)) {
+                // Check arguments of the IIFE call
+                if (node.initializer.arguments.length > 0) {
+                    const arg = node.initializer.arguments[0];
+                    if (ts.isFunctionExpression(arg) && containsTargetThrow(arg, sourceFile)) {
+                        if (ts.isIdentifier(node.name)) {
+                            targetVarName = node.name.text;
+                        }
+                    }
+                }
+            }
+        }
+        return ts.visitEachChild(node, findVarName, undefined);
+    };
+    ts.visitNode(sourceFile, findVarName);
+
+    if (!targetVarName) {
+        return code;
+    }
+
+    // Pass 2: Rename Variable and Export
     const transformer = (context: ts.TransformationContext) => {
         const visit: ts.Visitor = (node) => {
-            // Check if we found a FunctionExpression
+            // 1. Rename the Variable Declaration
+            if (ts.isVariableDeclaration(node) && 
+                ts.isIdentifier(node.name) && 
+                node.name.text === targetVarName) {
+                
+                // Verify it's the right one by checking initializer again? 
+                // Or just assume top-level uniqueness if we found it?
+                // To be safe, let's check structure again roughly or assume since we just scanned it.
+                // We'll rename it.
+                modified = true;
+                return ts.factory.updateVariableDeclaration(
+                    node,
+                    ts.factory.createIdentifier("__require"),
+                    node.exclamationToken,
+                    node.type,
+                    ts.visitNode(node.initializer, visit) as ts.Expression // Visit initializer to rename inner function too
+                );
+            }
+
+            // 2. Rename the inner function (optional but requested in previous step, good for clarity)
             if (ts.isFunctionExpression(node)) {
-                // Check if this function contains the target throw statement
                 if (containsTargetThrow(node, sourceFile)) {
                     modified = true;
-                    // 3. Replace/Update the function with the name "__require"
-                    return ts.factory.updateFunctionExpression(
+                     return ts.factory.updateFunctionExpression(
                         node,
                         node.modifiers,
                         node.asteriskToken,
@@ -33,19 +81,39 @@ export function preprocess(code: string): string {
                     );
                 }
             }
-            // Continue visiting children
+
+            // 3. Update Exports
+            if (ts.isExportSpecifier(node)) {
+                if (node.name.text === targetVarName && !node.propertyName) {
+                    modified = true;
+                    // export { r } -> export { __require }
+                    return ts.factory.updateExportSpecifier(
+                        node,
+                        node.isTypeOnly,
+                        undefined,
+                        ts.factory.createIdentifier("__require")
+                    );
+                }
+                if (node.propertyName && node.propertyName.text === targetVarName) {
+                     // export { r as something } -> export { __require as something }
+                     modified = true;
+                     return ts.factory.updateExportSpecifier(
+                        node,
+                        node.isTypeOnly,
+                        ts.factory.createIdentifier("__require"),
+                        node.name
+                    );
+                }
+            }
+            
             return ts.visitEachChild(node, visit, context);
         };
         return (node: ts.Node) => ts.visitNode(node, visit) as ts.Node;
     };
 
-    // 4. Apply transformation and print result
-    // We only want to print if modifications happened or return original if the print cost is high,
-    // but ts.transform is cheap enough here.
     const result = ts.transform(sourceFile, [transformer]);
     
-    // If no changes, return original code to preserve formatting as much as possible before prettier
-    if (!modified && result.transformed[0] === sourceFile) {
+    if (!modified) {
         return code; 
     }
 
@@ -84,4 +152,3 @@ function containsTargetThrow(funcNode: ts.FunctionExpression, sourceFile: ts.Sou
     visit(funcNode.body);
     return found;
 }
-
