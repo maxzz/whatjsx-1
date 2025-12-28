@@ -1,12 +1,9 @@
 import * as ts from 'typescript';
+import fs from 'fs';
+import path from 'path';
 
-/**
- * Preprocesses the code to fix issues with Rolldown/Vite runtime code.
- * 
- * 1. Renames the variable and function that handles `require` to `__require`.
- * 2. Renames the variable that handles module exports (Symbol.toStringTag, { value: `Module` }) to `__exportAll`.
- */
-export function preprocess(code: string): string {
+// Copied from src/core/preprocess.ts (simplified for testing logic)
+function preprocess(code: string): string {
     const sourceFile = ts.createSourceFile('file.js', code, ts.ScriptTarget.Latest, true);
     let targetRequireVarName: string | null = null;
     let targetExportVarName: string | null = null;
@@ -24,6 +21,7 @@ export function preprocess(code: string): string {
                     if (ts.isFunctionExpression(arg) && containsTargetThrow(arg, sourceFile)) {
                         if (ts.isIdentifier(node.name)) {
                             targetRequireVarName = node.name.text;
+                             console.log("Found require var:", targetRequireVarName);
                         }
                     }
                 }
@@ -34,6 +32,7 @@ export function preprocess(code: string): string {
                 if (containsModuleTag(node.initializer, sourceFile)) {
                     if (ts.isIdentifier(node.name)) {
                         targetExportVarName = node.name.text;
+                        console.log("Found export var:", targetExportVarName);
                     }
                 }
             }
@@ -50,26 +49,31 @@ export function preprocess(code: string): string {
     const transformer = (context: ts.TransformationContext) => {
         const visit: ts.Visitor = (node) => {
             // 1. Rename Variable Declarations
-            if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
-                if (node.name.text === targetRequireVarName) {
-                    modified = true;
-                    return ts.factory.updateVariableDeclaration(
-                        node,
-                        ts.factory.createIdentifier("__require"),
-                        node.exclamationToken,
-                        node.type,
-                        ts.visitNode(node.initializer, visit) as ts.Expression
-                    );
-                }
-                if (node.name.text === targetExportVarName) {
-                    modified = true;
-                    return ts.factory.updateVariableDeclaration(
-                        node,
-                        ts.factory.createIdentifier("__exportAll"),
-                        node.exclamationToken,
-                        node.type,
-                        ts.visitNode(node.initializer, visit) as ts.Expression
-                    );
+            // NOTE: The previous script failed here because `ts.isIdentifier(node.name)` might be returning false?
+            // Or node structure is different. Let's log what we visit.
+            if (ts.isVariableDeclaration(node)) {
+                if (ts.isIdentifier(node.name)) {
+                    // console.log("Visiting variable declaration:", node.name.text);
+                    if (node.name.text === targetRequireVarName) {
+                        modified = true;
+                        return ts.factory.updateVariableDeclaration(
+                            node,
+                            ts.factory.createIdentifier("__require"),
+                            node.exclamationToken,
+                            node.type,
+                            ts.visitNode(node.initializer, visit) as ts.Expression
+                        );
+                    }
+                    if (node.name.text === targetExportVarName) {
+                        modified = true;
+                        return ts.factory.updateVariableDeclaration(
+                            node,
+                            ts.factory.createIdentifier("__exportAll"),
+                            node.exclamationToken,
+                            node.type,
+                            ts.visitNode(node.initializer, visit) as ts.Expression
+                        );
+                    }
                 }
             }
 
@@ -110,8 +114,6 @@ export function preprocess(code: string): string {
                         ts.factory.createIdentifier("__exportAll")
                     );
                 }
-                
-                // Handle aliased exports if necessary (e.g., export { r as something })
                  if (node.propertyName) {
                     if (node.propertyName.text === targetRequireVarName) {
                         modified = true;
@@ -141,10 +143,7 @@ export function preprocess(code: string): string {
 
     const result = ts.transform(sourceFile, [transformer]);
     
-    if (!modified) {
-        return code; 
-    }
-
+    // Force print to see what's happening even if modified flag logic is weird (though it should be true)
     const printer = ts.createPrinter();
     return printer.printFile(result.transformed[0] as ts.SourceFile);
 }
@@ -184,25 +183,19 @@ function containsModuleTag(arrowFunc: ts.ArrowFunction, sourceFile: ts.SourceFil
     function visit(node: ts.Node) {
         if (found) return;
 
-        // We are looking for: e(r, Symbol.toStringTag, { value: `Module` })
-        // This is a CallExpression.
         if (ts.isCallExpression(node)) {
             const args = node.arguments;
-            // It usually has 3 arguments: object, key, descriptor
             if (args.length >= 3) {
-                // Check 2nd argument: Symbol.toStringTag
                 const secondArg = args[1];
                 if (ts.isPropertyAccessExpression(secondArg) &&
                     ts.isIdentifier(secondArg.expression) && secondArg.expression.text === 'Symbol' &&
                     secondArg.name.text === 'toStringTag') {
                     
-                    // Check 3rd argument: { value: `Module` }
                     const thirdArg = args[2];
                     if (ts.isObjectLiteralExpression(thirdArg)) {
                         const hasModuleValue = thirdArg.properties.some(prop => {
                             if (ts.isPropertyAssignment(prop) && 
                                 ts.isIdentifier(prop.name) && prop.name.text === 'value') {
-                                // Check if value is `Module` (template string or regular string)
                                 if (ts.isNoSubstitutionTemplateLiteral(prop.initializer) || ts.isStringLiteral(prop.initializer)) {
                                     return prop.initializer.text === 'Module';
                                 }
@@ -222,4 +215,31 @@ function containsModuleTag(arrowFunc: ts.ArrowFunction, sourceFile: ts.SourceFil
 
     visit(arrowFunc.body);
     return found;
+}
+
+const testFilePath = path.join(process.cwd(), 'src/assets/tests/rolldown-runtime.B2GvktQb.mjs');
+if (fs.existsSync(testFilePath)) {
+    console.log(`Reading ${testFilePath}`);
+    const content = fs.readFileSync(testFilePath, 'utf8');
+    const result = preprocess(content);
+    
+    if (result.includes('__exportAll =')) {
+        console.log("SUCCESS: Found variable declaration '__exportAll'");
+    } else {
+        console.log("FAILURE: Variable declaration '__exportAll' not found");
+        console.log("Excerpt around exportAll detection:");
+        const lines = result.split('\n');
+        // Find line with Module
+        lines.forEach(line => {
+             if (line.includes('Module')) console.log(line);
+        });
+    }
+
+    if (result.includes('export {') && result.includes('__exportAll')) {
+        console.log("SUCCESS: Found export containing '__exportAll'");
+    } else {
+        console.log("FAILURE: Export for '__exportAll' not updated");
+    }
+} else {
+    console.error(`File not found: ${testFilePath}`);
 }
