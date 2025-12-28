@@ -1,4 +1,7 @@
 import jscodeshift from 'jscodeshift';
+import * as prettier from 'prettier';
+import parserBabel from 'prettier/plugins/babel';
+import prettierPluginEstree from 'prettier/plugins/estree';
 
 // Types for worker messages
 export interface WorkerFileData {
@@ -24,14 +27,37 @@ export interface TransformedFile {
     id: string;
     name: string;
     path: string;
-    content: string;
-    converted: string;
+    content: string;        // Pretty-printed original content
+    converted: string;      // Pretty-printed transformed JSX
     error?: string;
     isRoot: boolean;
 }
 
-// Internal storage for loaded files
+// Internal storage for loaded files (with pretty-printed content)
 const loadedFiles: Map<string, WorkerFileData> = new Map();
+
+// Prettier options for JavaScript/JSX formatting
+const prettierOptions: prettier.Options = {
+    parser: 'babel',
+    plugins: [parserBabel, prettierPluginEstree],
+    printWidth: 100,
+    tabWidth: 2,
+    semi: true,
+    singleQuote: true,
+    trailingComma: 'es5',
+    bracketSpacing: true,
+    jsxSingleQuote: false,
+};
+
+// Pretty print / unminify code using Prettier
+async function prettify(source: string): Promise<string> {
+    try {
+        return await prettier.format(source, prettierOptions);
+    } catch (e) {
+        console.warn('[Worker] Prettier failed, returning original:', e);
+        return source;
+    }
+}
 
 // Transform function (same logic as before)
 function transform(source: string): string {
@@ -112,7 +138,7 @@ function findRootFileId(): string | null {
 }
 
 // Transform all loaded files
-function transformAllFiles(): TransformedFile[] {
+async function transformAllFiles(): Promise<TransformedFile[]> {
     const rootFileId = findRootFileId();
     const results: TransformedFile[] = [];
 
@@ -121,7 +147,9 @@ function transformAllFiles(): TransformedFile[] {
         let error: string | undefined;
 
         try {
-            converted = transform(file.content);
+            const rawConverted = transform(file.content);
+            // Pretty print the converted JSX output too
+            converted = await prettify(rawConverted);
         } catch (e: any) {
             error = e.message;
             console.error(`[Worker] Failed to transform ${file.name}:`, e);
@@ -141,16 +169,27 @@ function transformAllFiles(): TransformedFile[] {
     return results;
 }
 
+// Pretty print files when adding them
+async function addFiles(files: WorkerFileData[]): Promise<void> {
+    for (const file of files) {
+        // Pretty print the content before storing
+        const prettyContent = await prettify(file.content);
+        loadedFiles.set(file.id, {
+            ...file,
+            content: prettyContent,
+        });
+        console.log(`[Worker] Added and prettified: ${file.name}`);
+    }
+}
+
 // Handle incoming messages
-self.onmessage = (event: MessageEvent<WorkerMessage>) => {
+self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
     const { type, files } = event.data;
 
     switch (type) {
         case 'addFiles': {
             if (files) {
-                for (const file of files) {
-                    loadedFiles.set(file.id, file);
-                }
+                await addFiles(files);
             }
             
             const response: WorkerResult = {
@@ -162,7 +201,7 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
         case 'transform': {
             try {
-                const transformedFiles = transformAllFiles();
+                const transformedFiles = await transformAllFiles();
                 const rootFileId = transformedFiles.find(f => f.isRoot)?.id ?? null;
 
                 const response: WorkerResult = {
@@ -194,4 +233,3 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
 
 // Signal that worker is ready
 self.postMessage({ type: 'ready' });
-
