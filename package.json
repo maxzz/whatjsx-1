@@ -29,6 +29,7 @@
         "jscodeshift": "^0.15.1",
         "lucide-react": "^0.309.0",
         "prettier": "^3.7.4",
+        "prism-react-renderer": "^2.4.1",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "tailwind-merge": "^2.2.0",

@@ -2,6 +2,36 @@ import { useSnapshot } from 'valtio';
 import { fileStore } from '../store/file-store';
 import { useState } from 'react';
 import { clsx } from 'clsx';
+import { Highlight, themes } from 'prism-react-renderer';
+
+interface CodeBlockProps {
+    code: string;
+    language?: string;
+}
+
+function CodeBlock({ code, language = 'jsx' }: CodeBlockProps) {
+    return (
+        <Highlight theme={themes.nightOwl} code={code} language={language}>
+            {({ className, style, tokens, getLineProps, getTokenProps }) => (
+                <pre
+                    className={clsx(className, 'font-mono text-sm whitespace-pre-wrap')}
+                    style={{ ...style, background: 'transparent', margin: 0, padding: 0 }}
+                >
+                    {tokens.map((line, i) => (
+                        <div key={i} {...getLineProps({ line })}>
+                            <span className="inline-block w-12 text-gray-600 text-right pr-4 select-none">
+                                {i + 1}
+                            </span>
+                            {line.map((token, key) => (
+                                <span key={key} {...getTokenProps({ token })} />
+                            ))}
+                        </div>
+                    ))}
+                </pre>
+            )}
+        </Highlight>
+    );
+}
 
 export function Editor() {
     const snap = useSnapshot(fileStore);
@@ -56,9 +86,10 @@ export function Editor() {
                             <pre className="whitespace-pre-wrap font-mono text-sm">{file.error}</pre>
                         </div>
                     ) : (
-                        <pre className="font-mono text-sm text-gray-300 whitespace-pre-wrap">
-                            {activeTab === 'original' ? file.content : file.converted}
-                        </pre>
+                        <CodeBlock
+                            code={activeTab === 'original' ? file.content : file.converted}
+                            language={activeTab === 'converted' ? 'jsx' : 'javascript'}
+                        />
                     )
                 }
             </div>
