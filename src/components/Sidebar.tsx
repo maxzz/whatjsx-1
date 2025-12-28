@@ -3,6 +3,7 @@ import { fileStore } from '../store/file-store';
 import { clsx } from 'clsx';
 import { FileCode, FolderOpen, Star, Loader2 } from 'lucide-react';
 import { fileOpen, directoryOpen } from 'browser-fs-access';
+import { SettingsMenu } from './SettingsMenu';
 
 export function Sidebar() {
     const snap = useSnapshot(fileStore);
@@ -51,9 +52,12 @@ export function Sidebar() {
     return (
         <div className="w-64 bg-gray-900 border-r border-gray-800 flex flex-col h-full">
             <div className="p-4 border-b border-gray-800">
-                <h2 className="text-lg font-semibold text-white mb-4">
-                    Explorer
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-white">
+                        Explorer
+                    </h2>
+                    <SettingsMenu />
+                </div>
                 <div className="flex gap-2">
                     <button
                         onClick={handleOpenFile}

@@ -3,6 +3,18 @@ import * as prettier from 'prettier';
 import parserBabel from 'prettier/plugins/babel';
 import prettierPluginEstree from 'prettier/plugins/estree';
 
+// Prettier settings that can be configured
+export interface PrettierSettings {
+    printWidth: number;
+    tabWidth: number;
+    useTabs: boolean;
+    semi: boolean;
+    singleQuote: boolean;
+    trailingComma: 'none' | 'es5' | 'all';
+    bracketSpacing: boolean;
+    jsxSingleQuote: boolean;
+}
+
 // Types for worker messages
 export interface WorkerFileData {
     id: string;
@@ -12,12 +24,13 @@ export interface WorkerFileData {
 }
 
 export interface WorkerMessage {
-    type: 'addFiles' | 'clear' | 'transform';
+    type: 'addFiles' | 'clear' | 'transform' | 'updateSettings';
     files?: WorkerFileData[];
+    prettierSettings?: PrettierSettings;
 }
 
 export interface WorkerResult {
-    type: 'ready' | 'filesReady' | 'transformComplete' | 'error';
+    type: 'ready' | 'filesReady' | 'transformComplete' | 'error' | 'settingsUpdated';
     files?: TransformedFile[];
     rootFileId?: string | null;
     error?: string;
@@ -36,12 +49,11 @@ export interface TransformedFile {
 // Internal storage for loaded files (with pretty-printed content)
 const loadedFiles: Map<string, WorkerFileData> = new Map();
 
-// Prettier options for JavaScript/JSX formatting
-const prettierOptions: prettier.Options = {
-    parser: 'babel',
-    plugins: [parserBabel, prettierPluginEstree],
+// Default prettier settings
+let currentPrettierSettings: PrettierSettings = {
     printWidth: 100,
     tabWidth: 2,
+    useTabs: false,
     semi: true,
     singleQuote: true,
     trailingComma: 'es5',
@@ -49,10 +61,26 @@ const prettierOptions: prettier.Options = {
     jsxSingleQuote: false,
 };
 
+// Build prettier options from settings
+function buildPrettierOptions(): prettier.Options {
+    return {
+        parser: 'babel',
+        plugins: [parserBabel, prettierPluginEstree],
+        printWidth: currentPrettierSettings.printWidth,
+        tabWidth: currentPrettierSettings.tabWidth,
+        useTabs: currentPrettierSettings.useTabs,
+        semi: currentPrettierSettings.semi,
+        singleQuote: currentPrettierSettings.singleQuote,
+        trailingComma: currentPrettierSettings.trailingComma,
+        bracketSpacing: currentPrettierSettings.bracketSpacing,
+        jsxSingleQuote: currentPrettierSettings.jsxSingleQuote,
+    };
+}
+
 // Pretty print / unminify code using Prettier
 async function prettify(source: string): Promise<string> {
     try {
-        return await prettier.format(source, prettierOptions);
+        return await prettier.format(source, buildPrettierOptions());
     } catch (e) {
         console.warn('[Worker] Prettier failed, returning original:', e);
         return source;
@@ -184,9 +212,21 @@ async function addFiles(files: WorkerFileData[]): Promise<void> {
 
 // Handle incoming messages
 self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
-    const { type, files } = event.data;
+    const { type, files, prettierSettings } = event.data;
 
     switch (type) {
+        case 'updateSettings': {
+            if (prettierSettings) {
+                currentPrettierSettings = prettierSettings;
+                console.log('[Worker] Settings updated:', prettierSettings);
+            }
+            const response: WorkerResult = {
+                type: 'settingsUpdated',
+            };
+            self.postMessage(response);
+            break;
+        }
+
         case 'addFiles': {
             if (files) {
                 await addFiles(files);

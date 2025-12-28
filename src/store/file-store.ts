@@ -1,5 +1,6 @@
-import { proxy, snapshot } from 'valtio';
-import type { WorkerMessage, WorkerResult, WorkerFileData } from '../workers/file-worker';
+import { proxy, snapshot, subscribe } from 'valtio';
+import type { WorkerMessage, WorkerResult, WorkerFileData, PrettierSettings } from '../workers/file-worker';
+import { settingsStore } from './settings-store';
 
 export interface FileItem {
     id: string;
@@ -33,6 +34,17 @@ const worker = new Worker(
 let transformResolve: ((result: WorkerResult) => void) | null = null;
 let filesReadyResolve: (() => void) | null = null;
 
+// Send settings to worker
+function sendSettingsToWorker() {
+    const prettierSettings = snapshot(settingsStore.prettier) as PrettierSettings;
+    const message: WorkerMessage = {
+        type: 'updateSettings',
+        prettierSettings,
+    };
+    worker.postMessage(message);
+    console.log('[FileStore] Sent settings to worker');
+}
+
 // Handle worker messages
 worker.onmessage = (event: MessageEvent<WorkerResult>) => {
     const result = event.data;
@@ -41,6 +53,12 @@ worker.onmessage = (event: MessageEvent<WorkerResult>) => {
     switch (result.type) {
         case 'ready':
             console.log('[FileStore] Worker ready');
+            // Send initial settings when worker is ready
+            sendSettingsToWorker();
+            break;
+
+        case 'settingsUpdated':
+            console.log('[FileStore] Worker settings updated');
             break;
 
         case 'filesReady':
@@ -71,6 +89,11 @@ worker.onerror = (error) => {
     console.error('[FileStore] Worker error:', error);
     fileStore.isProcessing = false;
 };
+
+// Subscribe to settings changes and send to worker
+subscribe(settingsStore.prettier, () => {
+    sendSettingsToWorker();
+});
 
 export const fileStore = proxy<FileStore>({
     files: [],
