@@ -2,6 +2,7 @@ import jscodeshift from 'jscodeshift';
 import * as prettier from 'prettier';
 import parserBabel from 'prettier/plugins/babel';
 import prettierPluginEstree from 'prettier/plugins/estree';
+import { preprocess } from '../core/preprocess';
 
 // Prettier settings that can be configured
 export interface PrettierSettings {
@@ -200,8 +201,11 @@ async function transformAllFiles(): Promise<TransformedFile[]> {
 // Pretty print files when adding them
 async function addFiles(files: WorkerFileData[]): Promise<void> {
     for (const file of files) {
+        // Preprocess content (fix require issues)
+        const processedContent = preprocess(file.content);
+        
         // Pretty print the content before storing
-        const prettyContent = await prettify(file.content);
+        const prettyContent = await prettify(processedContent);
         loadedFiles.set(file.id, {
             ...file,
             content: prettyContent,
