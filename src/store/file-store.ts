@@ -34,7 +34,7 @@ let transformResolve: ((result: WorkerResult) => void) | null = null;
 let filesReadyResolve: (() => void) | null = null;
 
 // Handle worker messages
-worker.onmessage = (event: MessageEvent<WorkerResult & { type: string }>) => {
+worker.onmessage = (event: MessageEvent<WorkerResult>) => {
     const result = event.data;
     console.log('[FileStore] Worker message:', result.type);
 

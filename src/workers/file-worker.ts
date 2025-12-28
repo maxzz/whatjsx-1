@@ -14,7 +14,7 @@ export interface WorkerMessage {
 }
 
 export interface WorkerResult {
-    type: 'filesReady' | 'transformComplete' | 'error';
+    type: 'ready' | 'filesReady' | 'transformComplete' | 'error';
     files?: TransformedFile[];
     rootFileId?: string | null;
     error?: string;
